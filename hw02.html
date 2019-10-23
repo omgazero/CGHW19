@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HW02</title>
+  <style>
+    #info {
+      position: absolute;
+      left: 50vw;
+      top: 10px;
+      color: yellow;
+    }
+
+    body {
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="info">HW02</div>
+  <script src="https://threejs.org/build/three.min.js"></script>
+  <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.5.1/dat.gui.min.js"></script>
+  <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+  <script src="https://rawgit.com/mrdoob/three.js/master/examples/js/loaders/MTLLoader.js"></script>
+  <script src="https://rawgit.com/mrdoob/three.js/master/examples/js/loaders/OBJLoader.js"></script>
+  <script type="text/javascript">
+    var camera, scene, renderer, mesh, target, light;
+    var mesh, meshes = [],
+      meshNum = 0,
+      angle = 0,
+      body = new THREE.Object3D(),
+      turret = new THREE.Object3D(),
+      rightArm = new THREE.Object3D();
+    var localPlanes = [
+      [new THREE.Plane(new THREE.Vector3(0, -1, 0), 3.2)],
+      [new THREE.Plane(new THREE.Vector3(0, 1, 0), -3.2)]
+    ];
+    var settings, toggle = false;
+    var period = 5,
+      clock = new THREE.Clock();
+    var keys = [{
+        s: 0,
+        value: 0,
+        value2: Math.PI / 5,
+        x: 20,
+        z: 20
+      }, {
+        s: 0.25,
+        value: Math.PI / 2,
+        value2: Math.PI / 5 + Math.PI / 2,
+        x: 20,
+        z: -20
+      }, {
+        s: 0.5,
+        value: 0,
+        value2: Math.PI / 5 + Math.PI,
+        x: -20,
+        z: -20
+      }, {
+        s: 0.75,
+        value: -Math.PI / 2,
+        value2: Math.PI / 5 + Math.PI / 2 + Math.PI,
+        x: -20,
+        z: 20
+      }, {
+        s: 1,
+        value: 0,
+        value2: Math.PI / 5 + Math.PI * 2,
+        x: 20,
+        z: 20
+      }
+
+    ];
+
+    init();
+    animate();
+
+    function init() {
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+      camera.position.z = 50;
+      camera.position.y = 30;
+
+      light = new THREE.PointLight(0xffffff);
+      light.position.set(100, 300, 200);
+      scene.add(light);
+
+      var light2 = new THREE.AmbientLight(0x808080); // soft white light
+      scene.add(light2);
+
+      var gridXZ = new THREE.GridHelper(200, 20, 'red', 'white');
+      scene.add(gridXZ);
+
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x888888);
+
+      let controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+      document.body.appendChild(renderer.domElement);
+
+      readModel("Tank", 20, localPlanes[0]);
+      readModel("Tank", 20, localPlanes[1]);
+
+      //initGUI();
+      ///////////////////////////////////////////////////////////
+      window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function animate() {
+
+      if (turret != undefined) {
+        keyFrame();
+      }
+      requestAnimationFrame(animate);
+      render();
+    }
+
+    function render() {
+      renderer.localClippingEnabled = true;
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    ///model
+
+    function readModel(modelName, targetSize = 1, plane) {
+      var onProgress = function(xhr) {
+        if (xhr.lengthComputable) {
+          var percentComplete = xhr.loaded / xhr.total * 100;
+          console.log(Math.round(percentComplete, 2) + '% downloaded');
+        }
+      };
+      var onError = function(xhr) {};
+      var mtlLoader = new THREE.MTLLoader();
+      mtlLoader.setPath('models/' + modelName + '/');
+      mtlLoader.load(modelName + '.mtl', function(materials) {
+        materials.preload();
+        var objLoader = new THREE.OBJLoader();
+        objLoader.setMaterials(materials);
+        objLoader.setPath('models/' + modelName + '/');
+        objLoader.load(modelName + '.obj', function(object) {
+
+          let theObject = unitize(object, targetSize);
+          //theObject.rotation.x = Math.PI / 2;
+          theObject.name = modelName;
+
+          meshes[meshNum] = theObject;
+          scene.add(meshes[meshNum]);
+          meshes[meshNum].traverse(function(child) {
+            if (child instanceof THREE.Mesh) {
+              //console.log("a");
+              child.material.clippingPlanes = plane;
+            }
+          });
+          switch (meshNum) {
+            case 0:
+              body.add(meshes[meshNum]);
+              scene.add(body);
+              break;
+            case 1:
+              turret.add(meshes[meshNum]);
+              scene.add(turret);
+              break;
+            default:
+              break;
+          }
+          meshNum++;
+        }, onProgress, onError);
+      });
+    }
+
+    function unitize(object, targetSize) {
+
+      // find bounding box of 'object'
+      var box3 = new THREE.Box3();
+      box3.setFromObject(object);
+      var size = new THREE.Vector3();
+      size.subVectors(box3.max, box3.min);
+      var center = new THREE.Vector3();
+      center.addVectors(box3.max, box3.min).multiplyScalar(0.5);
+
+      console.log('center: ' + center.x + ', ' + center.y + ', ' + center.z);
+      console.log('size: ' + size.x + ', ' + size.y + ', ' + size.z);
+
+      // uniform scaling according to objSize
+      var objSize = Math.max(size.x, size.y, size.z);
+      var scaleSet = targetSize / objSize;
+
+      var theObject = new THREE.Object3D();
+      theObject.add(object);
+      object.scale.set(scaleSet, scaleSet, scaleSet);
+      object.position.set(-center.x * scaleSet, -center.y * scaleSet + size.y / 2 * scaleSet, -center.z * scaleSet);
+
+      return theObject;
+
+    }
+
+    function initGUI() {
+      var gui = new dat.GUI();
+      gui.domElement.id = 'gui';
+
+      settings = new function() {
+        this.Plane = 2;
+      }
+      var clipping = gui.addFolder('clipping');
+      clipping.add(settings, 'Plane', 0.0, 20.0, 0.1);
+    }
+
+    function keyFrame() {
+
+      let t = clock.getElapsedTime() % period;
+      let i;
+      let s = t / period;
+
+
+      for (i = 1; i < keys.length; i++) {
+        if (keys[i].s > s)
+          break;
+      }
+
+      i = i - 1;
+
+      let tt = (s - keys[i].s) / (keys[i + 1].s - keys[i].s);
+      let value = (1 - tt) * keys[i].value + tt * keys[i + 1].value;
+      turret.rotation.y = value;
+
+      let value2 = (1 - tt) * keys[i].value2 + tt * keys[i + 1].value2;
+      body.rotation.y = value2;
+
+      let x = (1 - tt) * keys[i].x + tt * keys[i + 1].x;
+      turret.position.x = x;
+      body.position.x = x;
+
+      let z = (1 - tt) * keys[i].z + tt * keys[i + 1].z;
+      turret.position.z = z;
+      body.position.z = z;
+
+
+    }
+  </script>
+</body>
+
+</html>
