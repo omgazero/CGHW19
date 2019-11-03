@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HW03</title>
+  <style>
+
+    #info {
+      position: absolute;
+      left: 50vw;
+      top: 10px;
+      color: yellow;
+    }
+
+    body {
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="info">HW03</div>
+  <script src="https://threejs.org/build/three.min.js"></script>
+  <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+  <script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.6/dat.gui.min.js"></script>
+  <script src="https://raw.githack.com/mrdoob/three.js/master/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://raw.githack.com/mrdoob/three.js/master/examples/js/loaders/DRACOLoader.js"></script>
+  <script type="text/javascript">
+    var camera, camera2, scene, renderer, mesh, target, light, controls;
+    var myCar;
+    var keyboard = new KeyboardState();
+    var power, angle, speed, clock = new THREE.Clock();
+    var obstacles = [], center;
+    var cameraNum = 0;
+    var gcontrols;
+    (function() {
+      Math.clamp = function(val,min,max){
+        return Math.min(Math.max(val,min),max);
+    }})();
+
+    class Point2{
+    	constructor(x, y){
+    		this.x = x;
+    		this.y = y;
+      }
+    }
+
+    class Box2{
+    	constructor(max, min){
+    		this.max = max;
+    		this.min = min;
+      }
+    }
+    class obstacle{
+      constructor(pos, radius){
+        this.pos = pos;
+        this.r = radius;
+        this.mesh = new THREE.Mesh(new THREE.CylinderGeometry( radius, radius, 16, 20 ), new THREE.MeshBasicMaterial());
+        this.mesh.position.copy(pos);
+        scene.add(this.mesh);
+      }
+      collision(car){
+        let c = new Point2(0, 0);
+	      let r = new Box2( new Point2(car.max[0], car.max[1]), new Point2(car.min[0], car.min[1]) );
+        let normalMat = new THREE.Matrix3().getNormalMatrix( car.mesh.matrixWorld );
+        let xR = new THREE.Vector3(1, 0, 0).applyMatrix3(normalMat).normalize();
+        let yR = new THREE.Vector3(0, 0, 1).applyMatrix3(normalMat).normalize();
+
+        c.x = this.pos.clone().sub(car.mesh.position).dot(xR);
+        c.y = this.pos.clone().sub(car.mesh.position).dot(yR);
+
+        let rad = this.r * this.r;
+        r.max.x -= c.x; r.max.y -= c.y;
+        r.min.x -= c.x; r.min.y -= c.y;
+
+        if( r.max.x < 0  ){
+
+          if(r.max.y < 0)
+              return (r.max.x * r.max.x + r.max.y * r.max.y) < rad ? 1:0;
+          else if(r.min.y > 0)
+              return (r.max.x * r.max.x + r.min.y * r.min.y) < rad ? 7:0;
+          else
+              return Math.abs(r.max.x) < this.r ? 4:0;
+
+        }
+        else if( r.min.x > 0 ){
+
+          if( r.max.y < 0 )
+              return  (r.max.y * r.max.y + r.min.x * r.min.x) < rad ? 3:0;
+          else if( r.min.y > 0 )
+              return  (r.min.y * r.min.y + r.min.x * r.min.x) < rad ? 9:0;
+          else
+              return r.min.x < this.r ? 6:0;
+        }
+        else {
+
+          if( r.max.y < 0 )
+              return Math.abs(r.max.y) < this.r ? 2:0;
+          else if( r.min.y > 0 )
+              return r.min.y < this.r ? 8:0;
+          else
+              return 5;
+        }
+      }
+    }
+
+    class Car{
+      constructor(mesh, pos, width, height){
+        this.mesh = mesh;
+        scene.add(this.mesh);
+
+        this.max = [width/2, height/2];
+        this.min = [-width/2, -height/2];
+        this.pos = pos;
+        this.power = 5;
+        this.vel = new THREE.Vector3();
+        this.angle = 0;
+        this.wheelOrientation = 0;
+
+        this.frontWheelL = this.mesh.getObjectByName( 'Cylinder007_0' );
+        this.frontWheelR = this.mesh.getObjectByName( 'Cylinder001_0' );
+        this.backWheelL = this.mesh.getObjectByName( 'Cylinder003_0' );
+        this.backWheelR = this.mesh.getObjectByName( 'Cylinder002_0' );
+
+        this.fall = 0;
+      }
+      update(dt){
+
+          if ( keyboard.pressed("space") )
+        	  this.power = 0;
+
+          if ( keyboard.pressed("W") )
+            this.power = Math.clamp (this.power + dt*150, -40, 100);
+          else if( keyboard.pressed("S") )
+            this.power = Math.clamp (this.power - dt*150, -40, 100);
+          else {
+            if(this.power > 0)
+              this.power = Math.clamp (this.power - dt*30, 0, 100);
+            else
+              this.power = Math.clamp (this.power + dt*30, -40, 0);
+          }
+          if ( keyboard.pressed("A") )
+            this.wheelOrientation = Math.clamp(this.wheelOrientation + dt*1.2, -0.05, 0.05);
+        	else if ( keyboard.pressed("D") ){
+            this.wheelOrientation = Math.clamp(this.wheelOrientation - dt*1.2, -0.05, 0.05);
+          }
+          else {
+            if ( this.wheelOrientation > 0 )
+              this.wheelOrientation = Math.clamp( this.wheelOrientation - dt * 1.2, 0, 0.05 );
+            else
+              this.wheelOrientation = Math.clamp( this.wheelOrientation + dt * 1.2, -0.05, 0 );
+          }
+
+          let force = new THREE.Vector3().copy ( new THREE.Vector3(1,0,0).multiplyScalar(this.power).applyAxisAngle(
+                              new THREE.Vector3(0,1,0),
+                              this.angle
+                              ));
+          this.move(force, dt);
+          this.angle += this.wheelOrientation * this.power * 0.0075;
+          this.mesh.rotation.y = this.angle + Math.PI/2;
+
+          let acc = this.power >= 0 ? 1 : -1;
+          this.frontWheelL.rotation.x = this.wheelOrientation*-13*acc;
+          this.frontWheelR.rotation.x = this.wheelOrientation*-13*acc;
+          this.backWheelL.rotation.x = this.wheelOrientation*-13*acc;
+          this.backWheelR.rotation.x = this.wheelOrientation*-13*acc;
+
+          this.frontWheelL.rotation.z += this.power*0.001;
+          this.frontWheelR.rotation.z += this.power*0.001;
+          this.backWheelL.rotation.z += this.power*0.001;
+          this.backWheelR.rotation.z += this.power*0.001;
+      }
+      move(force, dt){
+
+        force.add( this.vel.clone().multiplyScalar(-2) )
+        this.vel.add( force.clone().multiplyScalar(dt) );
+        this.pos.copy( this.mesh.position );
+        this.pos.add( this.vel.clone().multiplyScalar(dt) );
+        if(this.pos.x > 220 || this.pos.x < -30 || this.pos.z > 220 || this.pos.z < -30)
+          this.fall += 5*dt;
+        else
+          this.fall = 0;
+        this.pos.y -= this.fall;
+        if(this.pos.y < -300){
+          this.pos.set(0, 0, 0);
+          /*this.vel.copy(new THREE.Vector3());
+          this.power = 0;*/
+        }
+        this.mesh.position.copy(this.pos);
+      }
+      collided(where, dt){
+        if(where == 0){
+          this.vel.copy(new THREE.Vector3());
+          this.power = 0;
+          let force = new THREE.Vector3().copy ( new THREE.Vector3(1,0,0).multiplyScalar(-200).applyAxisAngle(
+                              new THREE.Vector3(0,1,0),
+                              this.angle
+                              ));
+          this.move(force, dt);
+        }
+        else if(where == 1){
+          this.vel.copy(new THREE.Vector3());
+          this.power = 0;
+          let force = new THREE.Vector3().copy ( new THREE.Vector3(1,0,0).multiplyScalar(200).applyAxisAngle(
+                              new THREE.Vector3(0,1,0),
+                              this.angle
+                              ));
+          this.move(force, dt);
+        }
+        else if(where == 2){
+          let force = new THREE.Vector3().copy ( new THREE.Vector3(0,0,1).multiplyScalar(100).applyAxisAngle(
+                              new THREE.Vector3(0,1,0),
+                              this.angle
+                              ));
+          this.move(force, dt);
+        }
+        else if(where == 3){
+          let force = new THREE.Vector3().copy ( new THREE.Vector3(0,0,1).multiplyScalar(-100).applyAxisAngle(
+                              new THREE.Vector3(0,1,0),
+                              this.angle
+                              ));
+          this.move(force, dt);
+        }
+      }
+    }
+
+    init();
+    animate();
+
+    function init() {
+      scene = new THREE.Scene();
+
+      let WW = window.innerWidth;
+      let HH = window.innerHeight;
+      camera = new THREE.OrthographicCamera(-WW/7, WW/7, HH/7, -HH/7, 1, 500);
+      camera.position.set(100, 300, 100);
+
+      camera2 = new THREE.PerspectiveCamera(60, WW / HH, 1, 1000);
+
+      ///skybox
+      let cubeloader = new THREE.CubeTextureLoader();
+      cubeloader.crossOrigin = '';
+
+      let path = 'images/skybox/';
+      let format = '.jpg';
+      let urls = [
+            path + 'right' + format,
+            path + 'left' + format,
+            path + 'top' + format,
+            path + 'bottom' + format,
+            path + 'front' + format,
+            path + 'back' + format
+      ];
+
+
+      let cube = cubeloader.load( urls );
+      scene.background = cube;
+
+      light = new THREE.PointLight(0xffffff);
+      light.position.set(100, 300, 200);
+      scene.add(light);
+
+      var light2 = new THREE.AmbientLight(0x404040); // soft white light
+      scene.add(light2);
+
+      /*var gridXZ = new THREE.GridHelper(200, 20, 'red', 'white');
+      scene.add(gridXZ);*/
+
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x888888);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableKeys = false;
+      controls.target = new THREE.Vector3(110, 0, 100);
+
+      document.body.appendChild(renderer.domElement);
+
+      readModel('models/gltf/car/scene.gltf', 20);
+      for(let i=0;i<10;i++){
+        obstacles[i] = new obstacle(new THREE.Vector3(Math.random()*200, 8, Math.random()*200), Math.random()*5+2);
+      }
+      createMap();
+      initGUI();
+      ///////////////////////////////////////////////////////////
+      renderer.autoClear = false;
+      window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function animate() {
+      keyboard.update();
+      controls.update();
+      let dt = clock.getDelta();
+      if(myCar!=undefined){
+        myCar.update(dt);
+        let coll;
+        for(let i=0;i<obstacles.length;i++){
+          coll = obstacles[i].collision(myCar);
+          if(coll){
+            obstacles[i].mesh.material.color.set ('red');
+            if(coll == 1 || coll == 2 || coll == 3){
+              myCar.collided(0, dt);
+            }
+            else if(coll == 7 || coll == 8 || coll == 9){
+              myCar.collided(1, dt);
+            }
+            else if(coll == 4 || coll == 5){
+              myCar.collided(2, dt);
+            }
+            else if(coll == 6){
+              myCar.collided(3, dt);
+            }
+          }
+          else{
+            obstacles[i].mesh.material.color.set ('green');
+          }
+        }
+        cameraNum = gcontrols.camera;
+        if(cameraNum == 0){
+          camera2.fov = 60;
+          camera2.position.lerp( myCar.mesh.localToWorld( new THREE.Vector3( 0, 20, -50 ) ), dt* 2);
+    	    camera2.lookAt(myCar.pos);
+        }
+        else if(cameraNum == 1){
+          camera2.fov = 60;
+          camera2.position.lerp( myCar.mesh.localToWorld( new THREE.Vector3( 0, 5, -30 ) ), dt* 2);
+    	    camera2.lookAt(myCar.pos);
+        }
+        else if(cameraNum == 2){
+          camera2.fov = 60;
+          camera2.position.lerp( myCar.mesh.localToWorld( new THREE.Vector3( 0, 60, -20 ) ), dt* 2);
+    	    camera2.lookAt(myCar.pos);
+        }
+        else if(cameraNum == 3){
+          camera2.fov = 90;
+          camera2.position.lerp( myCar.mesh.localToWorld( new THREE.Vector3( 1, 5, 0 ) ), 0.7);
+    	    camera2.lookAt(myCar.mesh.localToWorld( new THREE.Vector3( 0, 0, 20 )));
+        }
+      }
+
+      requestAnimationFrame(animate);
+      render();
+    }
+
+    function render() {
+      let WW = window.innerWidth;
+      let HH = window.innerHeight;
+
+      renderer.clear();
+      renderer.setViewport(0, 0, WW / 2, HH);
+      camera.left = -WW/7;
+      camera.right = WW/7;
+      camera.top = HH/7;
+      camera.bottom = -HH/7;
+      camera.updateProjectionMatrix();
+      renderer.render(scene, camera);
+
+      renderer.setViewport(WW / 2, 0, WW / 2, HH);
+      camera2.aspect = WW / 2 / HH;
+      camera2.updateProjectionMatrix();
+      renderer.render(scene, camera2);
+    }
+
+    ///model
+    function unitize(object, targetSize) {
+
+      // find bounding box of 'object'
+      var box3 = new THREE.Box3();
+      box3.setFromObject(object);
+      var size = new THREE.Vector3();
+      size.subVectors(box3.max, box3.min);
+      var center = new THREE.Vector3();
+      center.addVectors(box3.max, box3.min).multiplyScalar(0.5);
+
+      console.log('center: ' + center.x + ', ' + center.y + ', ' + center.z);
+      console.log('size: ' + size.x + ', ' + size.y + ', ' + size.z);
+
+      // uniform scaling according to objSize
+      var objSize = Math.max(size.x, size.y, size.z);
+      var scaleSet = targetSize / objSize;
+
+      var theObject = new THREE.Object3D();
+      theObject.add(object);
+      object.scale.set(scaleSet, scaleSet, scaleSet);
+      object.position.set(-center.x * scaleSet, -center.y * scaleSet + size.y / 2 * scaleSet, -center.z * scaleSet);
+
+      return theObject;
+
+    }
+
+    function readModel(modelPath, targetSize = 1){
+      let dracoLoader = new THREE.DRACOLoader();
+			dracoLoader.setDecoderPath( 'js/libs/draco/gltf/' );
+      let loader = new THREE.GLTFLoader();
+      loader.setDRACOLoader( dracoLoader );
+      loader.load(modelPath, function(gltf){
+        let theObject = unitize(gltf.scene.children[0], targetSize);
+
+        myCar = new Car(theObject, new THREE.Vector3(), targetSize/2, targetSize);
+
+      },
+      function ( xhr ) {
+
+        console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+
+      },
+      function ( error ) {
+
+    		console.log( 'An error happened' );
+
+    	}
+      )
+    }
+
+
+    function onWindowResize() {
+      //camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      //camera2.aspect = window.innerWidth / window.innerHeight;
+      camera2.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    function createMap(){
+      /*
+      0:橫走
+      1:直走
+      2:右上
+      3:右下
+      4:左上
+      5:左下
+      */
+      let myMap = [
+          [4, 0, 0, 0, 0, 2],
+          [1, 4, 0, 0, 0, 3],
+          [1, 5, 0, 0, 0, 2],
+          [1, 4, 0, 0, 0, 3],
+          [1, 5, 0, 0, 0, 2],
+          [5, 0, 0, 0, 0, 3]
+      ];
+      let texture = new THREE.TextureLoader().load("images/road-texture.jpg");
+      let material = new THREE.MeshPhongMaterial({map:texture, side:THREE.DoubleSide});
+      let boxGeom = new THREE.BoxGeometry(40, 2, 40);
+      let cylinderGeom = new THREE.CylinderGeometry( 40, 40, 1.9, 20, 1, false, 0, Math.PI/2);
+      let ringGeom = new THREE.RingBufferGeometry( 0.01, 40, 20, 1, 0, Math.PI/2);
+
+      let uvs = ringGeom.attributes.uv.array;
+      let phiSegments = ringGeom.parameters.phiSegments;
+      let thetaSegments = ringGeom.parameters.thetaSegments;
+      for(let c=0, j=0;j<=phiSegments;j++){
+        for(let i=0;i<=thetaSegments;i++){
+          uvs[c++] = i / thetaSegments * 1;
+          uvs[c++] = j / phiSegments / 1;
+        }
+      }
+      for(let i=0;i<myMap.length;i++){
+        for(let j=0;j<myMap[i].length;j++){
+            let type = myMap[i][j];
+
+            switch (type) {
+              case 0:
+                let myMesh0 = new THREE.Mesh(boxGeom, material);
+                myMesh0.position.set(j*40, -1, i*40);
+                scene.add(myMesh0);
+                break;
+              case 1:
+                let myMesh1 = new THREE.Mesh(boxGeom, material);
+                myMesh1.position.set(j*40, -1, i*40);
+                myMesh1.rotation.y = Math.PI/2;
+                scene.add(myMesh1);
+                break;
+              case 2:
+                let myObj2 = new THREE.Object3D();
+                let myMesh2 = new THREE.Mesh(ringGeom, material);
+                let myMesh2_2 = new THREE.Mesh(cylinderGeom, material);
+                myMesh2_2.position.set(-20, -1, -20);
+                myObj2.add(myMesh2_2);
+                myMesh2.position.set(-20, 0, -20);
+                myMesh2.rotation.set(Math.PI/2, 0, 0);
+                myObj2.position.set(j*40, 0, i*40);
+                myObj2.rotation.y = Math.PI/2;
+                myObj2.add(myMesh2);
+                scene.add(myObj2);
+                break;
+              case 3:
+                let myObj3 = new THREE.Object3D();
+                let myMesh3 = new THREE.Mesh(ringGeom, material);
+                let myMesh3_2 = new THREE.Mesh(cylinderGeom, material);
+                myMesh3_2.position.set(-20, -1, -20);
+                myObj3.add(myMesh3_2);
+                myMesh3.position.set(-20, 0, -20);
+                myMesh3.rotation.set(Math.PI/2, 0, 0);
+                myObj3.position.set(j*40, 0, i*40);
+                myObj3.add(myMesh3);
+                scene.add(myObj3);
+                break;
+              case 4:
+                let myObj4 = new THREE.Object3D();
+                let myMesh4 = new THREE.Mesh(ringGeom, material);
+                let myMesh4_2 = new THREE.Mesh(cylinderGeom, material);
+                myMesh4_2.position.set(-20, -1, -20);
+                myObj4.add(myMesh4_2);
+                myMesh4.position.set(-20, 0, -20);
+                myMesh4.rotation.set(Math.PI/2, 0, 0);
+                myObj4.position.set(j*40, 0, i*40);
+                myObj4.rotation.y = Math.PI;
+                myObj4.add(myMesh4);
+                scene.add(myObj4);
+                break;
+              case 5:
+                let myObj5 = new THREE.Object3D();
+                let myMesh5 = new THREE.Mesh(ringGeom, material);
+                let myMesh5_2 = new THREE.Mesh(cylinderGeom, material);
+                myMesh5_2.position.set(-20, -1, -20);
+                myObj5.add(myMesh5_2);
+                myMesh5.position.set(-20, 0, -20);
+                myMesh5.rotation.set(Math.PI/2, 0, 0);
+                myObj5.position.set(j*40, 0, i*40);
+                myObj5.rotation.y = 3*Math.PI/2;
+                myObj5.add(myMesh5);
+                scene.add(myObj5);
+                break;
+              default:
+                break;
+            }
+        }
+      }
+
+    }
+    function initGUI(){
+      gcontrols = {
+        camera:0
+      };
+
+      var gui = new dat.GUI();
+      gui.domElement.id = 'gui';
+
+      gui.add(gcontrols, 'camera', { camera1:0, camera2:1, camera3:2, camera4:3});
+    }
+  </script>
+</body>
+
+</html>
