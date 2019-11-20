@@ -20,19 +20,20 @@
 </head>
 
 <body>
-  <div id="info">HW04<br>have some bug</div>
+  <div id="info">HW04</div>
   <script src="https://threejs.org/build/three.min.js"></script>
   <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
   <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
   <script src="https://rawgit.com/mrdoob/three.js/master/examples/js/loaders/MTLLoader.js"></script>
   <script src="https://rawgit.com/mrdoob/three.js/master/examples/js/loaders/OBJLoader.js"></script>
+  <script src="https://mrdoob.github.io/stats.js/build/stats.min.js"></script>
   <script type="text/javascript">
     var meshes = new THREE.Group(),
-      myTable, myButton, penHolder, myDrink, camera, scene, renderer, mesh, target, light, light2;
+      myTable, myButton, penHolder, myDrink, camera, scene, renderer, mesh, target, light, light2, stats;
     var objFiles = ['Desk lamp', 'Chair', 'Pencil'],
-      objPos = [new THREE.Vector3(-5, 9.2, -2), new THREE.Vector3(0, 0, 15), new THREE.Vector3(0.1, 9.9, 0)],
+      objPos = [new THREE.Vector3(-4, 9.2, -2), new THREE.Vector3(0, 0, 15), new THREE.Vector3(0.1, 9.9, 0)],
       objSize = [5, 10, 1.5],
-      objRoation = [new THREE.Euler(0, -Math.PI / 4, 0, 'XYZ'), new THREE.Euler(0, Math.PI, 0, 'XYZ'), new THREE.Euler(0, 0, Math.PI/3, 'XYZ')];
+      objRoation = [new THREE.Euler(0, -Math.PI / 4, 0, 'XYZ'), new THREE.Euler(0, Math.PI, 0, 'XYZ'), new THREE.Euler(0, 0, Math.PI / 3, 'XYZ')];
     var pickables = [],
       raycaster = new THREE.Raycaster(),
       mouse = new THREE.Vector2();
@@ -70,7 +71,7 @@
         this.isTurnOn = false;
         this.intensity = 0;
       }
-      update(){
+      update() {
         this.light.intensity = THREE.Math.lerp(this.light.intensity, this.intensity, 0.05);
       }
     }
@@ -93,29 +94,24 @@
       light.shadow.mapSize.height = 1024;
       light.shadow.camera.near = 1;
       light.shadow.camera.far = 500;
-      light.shadow.camera.left = -40;
-      light.shadow.camera.top = -40;
-      light.shadow.camera.right = 40;
-      light.shadow.camera.bottom = 40;
-      //light.shadow.camera.fov = light.angle / Math.PI * 180 *2;
-      light.shadow.bias = -0.005;
-
-      var helper = new THREE.CameraHelper(light.shadow.camera);
-      scene.add(helper);
+      light.shadow.camera.left = -20;
+      light.shadow.camera.top = 20;
+      light.shadow.camera.right = 20;
+      light.shadow.camera.bottom = -20;
+      light.shadow.bias = -0.00001;
 
 
-      light2 = new THREE.AmbientLight(0x404040, 1); // soft white light
+      light2 = new THREE.AmbientLight(0x404040, 0.5); // soft white light
       scene.add(light2);
 
-      lampLight = new THREE.SpotLight(0xffc800, 0, 300, 0.9, 0.5);
-      lampLight.position.set(-4.5, 13, -2);
+      lampLight = new THREE.SpotLight(0xffc800, 0, 13, 1.05, 0.5);
+      lampLight.position.set(-3.5, 14, -1.5);
       scene.add(lampLight);
-
-      /*var spotLightHelper = new THREE.SpotLightHelper( lampLight );
-      scene.add( spotLightHelper );*/
-
-      var gridXZ = new THREE.GridHelper(200, 20, 'red', 'white');
-      scene.add(gridXZ);
+      lampLight.castShadow = true;
+      lampLight.shadow.mapSize.width = 1024;
+      lampLight.shadow.mapSize.height = 1024;
+      lampLight.shadow.camera.near = 1;
+      lampLight.shadow.camera.far = 500;
 
       renderer = new THREE.WebGLRenderer({
         antialias: true
@@ -130,35 +126,42 @@
 
       document.body.appendChild(renderer.domElement);
 
+      stats = new Stats();
+      stats.showPanel(0);
+      stats.domElement.style.position = 'absolute';
+      stats.domElement.style.left = '0px';
+      stats.domElement.style.top = '10px';
+      document.body.appendChild(stats.domElement);
+
       readModel(objFiles, objSize[0], 0)
       myTable = createTable();
-      /*myTable.traverse(function(mesh) {
+      myTable.traverse(function(mesh) {
         if (mesh instanceof THREE.Mesh) {
           mesh.castShadow = true;
           mesh.receiveShadow = true;
         }
-      });*/
+      });
       scene.add(myTable);
       myButton = createButton();
       myButton.position.set(-4, 9.3, 2);
       scene.add(myButton);
-      /*let box = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 2), new THREE.MeshPhongMaterial());
-      box.castShadow = true;
-      box.position.set(0, 11, 0);
-      scene.add(box);*/
+
       penHolder = new createPenHolder();
       penHolder.position.set(0, 9.75, 0);
       scene.add(penHolder);
+
       let loader = new THREE.TextureLoader();
       loader.crossOrigin = '';
       texture = loader.load('images/floor.jpg');
-      let plane = new THREE.Mesh(new THREE.PlaneGeometry(50, 50, 20, 20), new THREE.MeshPhongMaterial({map:texture}));
+      let plane = new THREE.Mesh(new THREE.PlaneGeometry(50, 50, 20, 20), new THREE.MeshPhongMaterial({
+        map: texture
+      }));
       plane.rotation.x = -Math.PI / 2;
       plane.position.y = 0;
       plane.receiveShadow = true;
       scene.add(plane);
+
       myDrink = createDrink();
-      //myDrink.position.set(3, 10, 2);
       myDrink.position.set(3, 9.2, 2);
       myDrink.scale.set(0.1, 0.1, 0.1);
       myDrink.traverse(function(mesh) {
@@ -175,12 +178,12 @@
     }
 
     function animate() {
+      stats.begin();
 
-      /*if(meshes.children[0]!=undefined){
-        meshes.children[0].rotation.y += 0.1;
-      }*/
       mySwitch1.update();
       mySwitch2.update();
+
+      stats.end();
       requestAnimationFrame(animate);
       render();
     }
@@ -275,12 +278,12 @@
 
       let desk1 = new THREE.Mesh(new THREE.BoxGeometry(14, 1, 10), material);
       desk1.position.set(0, 8.5, 0);
-      //desk1.receiveShadow = true;
+      desk1.receiveShadow = true;
       table.add(desk1);
 
       let desk2 = new THREE.Mesh(new THREE.BoxGeometry(13.8, 0.2, 9.8), material);
       desk2.position.set(0, 0.6, 0);
-      //desk2.receiveShadow = true;
+      desk2.receiveShadow = true;
       desk1.add(desk2);
 
       let tableLeg1 = new THREE.Mesh(new THREE.BoxGeometry(2, 8, 2), material);
@@ -338,9 +341,11 @@
         transparent: true,
         side: THREE.DoubleSide
       }));
-      let circle = new THREE.Mesh(new THREE.CircleGeometry( 0.5, 20 ), new THREE.MeshPhongMaterial({side: THREE.DoubleSide}));
+      let circle = new THREE.Mesh(new THREE.CircleGeometry(0.5, 20), new THREE.MeshPhongMaterial({
+        side: THREE.DoubleSide
+      }));
       circle.position.y -= 0.5;
-      circle.rotation.x = -Math.PI/2;
+      circle.rotation.x = -Math.PI / 2;
       cylinder.add(circle);
 
       cylinder.traverse(function(mesh) {
@@ -352,88 +357,89 @@
 
       return cylinder;
     }
-    function createDrink(){
+
+    function createDrink() {
       let geometry = new THREE.Geometry();
       let vertices = [
-        new THREE.Vector3(3.5, 0, 3.5),//0
-        new THREE.Vector3(-3.5, 0, 3.5),//1
-        new THREE.Vector3(3.5, 0, -3.5),//2
-        new THREE.Vector3(-3.5, 0, -3.5),//3
+        new THREE.Vector3(3.5, 0, 3.5), //0
+        new THREE.Vector3(-3.5, 0, 3.5), //1
+        new THREE.Vector3(3.5, 0, -3.5), //2
+        new THREE.Vector3(-3.5, 0, -3.5), //3
 
-        new THREE.Vector3(3.5, 14.6, 3.5),//4
-        new THREE.Vector3(-3.5, 14.6, 3.5),//5
-        new THREE.Vector3(3.5, 14.6, -3.5),//6
-        new THREE.Vector3(-3.5, 14.6, -3.5),//7
+        new THREE.Vector3(3.5, 14.6, 3.5), //4
+        new THREE.Vector3(-3.5, 14.6, 3.5), //5
+        new THREE.Vector3(3.5, 14.6, -3.5), //6
+        new THREE.Vector3(-3.5, 14.6, -3.5), //7
 
-        new THREE.Vector3(3.5, 17, 0),//8
-        new THREE.Vector3(-3.5, 17, 0),//9
+        new THREE.Vector3(3.5, 17, 0), //8
+        new THREE.Vector3(-3.5, 17, 0), //9
 
-        new THREE.Vector3(3.5, 19, 0),//10
-        new THREE.Vector3(-3.5, 19, 0)//11
+        new THREE.Vector3(3.5, 19, 0), //10
+        new THREE.Vector3(-3.5, 19, 0) //11
       ];
       let face;
-      face = new THREE.Face3(0, 1, 2),//0
-      face.materialIndex = 0;
+      face = new THREE.Face3(0, 1, 2), //0
+        face.materialIndex = 0;
       geometry.faces.push(face);
-      face = new THREE.Face3(3, 2, 1),//1
-      face.materialIndex = 0;
-      geometry.faces.push(face);
-
-      face = new THREE.Face3(0, 4, 1),//2
-      face.materialIndex = 1;
-      geometry.faces.push(face);
-      face = new THREE.Face3(5, 1, 4),//3
-      face.materialIndex = 1;
-      geometry.faces.push(face);
-      face = new THREE.Face3(4, 0, 6),//4
-      face.materialIndex = 2;
-      geometry.faces.push(face);
-      face = new THREE.Face3(2, 6, 0),//5
-      face.materialIndex = 2;
-      geometry.faces.push(face);
-      face = new THREE.Face3(6, 2, 7),//6
-      face.materialIndex = 1;
-      geometry.faces.push(face);
-      face = new THREE.Face3(3, 7, 2),//7
-      face.materialIndex = 1;
-      geometry.faces.push(face);
-      face = new THREE.Face3(7, 3, 5),//8
-      face.materialIndex = 3;
-      geometry.faces.push(face);
-      face = new THREE.Face3(1, 5, 3),//9
-      face.materialIndex = 3;
+      face = new THREE.Face3(3, 2, 1), //1
+        face.materialIndex = 0;
       geometry.faces.push(face);
 
-      face = new THREE.Face3(4, 8, 5),//10
-      face.materialIndex = 4;
+      face = new THREE.Face3(0, 4, 1), //2
+        face.materialIndex = 1;
       geometry.faces.push(face);
-      face = new THREE.Face3(9, 5, 8),//11
-      face.materialIndex = 4;
+      face = new THREE.Face3(5, 1, 4), //3
+        face.materialIndex = 1;
       geometry.faces.push(face);
-      face = new THREE.Face3(7, 9, 6),//12
-      face.materialIndex = 4;
+      face = new THREE.Face3(4, 0, 6), //4
+        face.materialIndex = 2;
       geometry.faces.push(face);
-      face = new THREE.Face3(8, 6, 9),//13
-      face.materialIndex = 4;
+      face = new THREE.Face3(2, 6, 0), //5
+        face.materialIndex = 2;
+      geometry.faces.push(face);
+      face = new THREE.Face3(6, 2, 7), //6
+        face.materialIndex = 1;
+      geometry.faces.push(face);
+      face = new THREE.Face3(3, 7, 2), //7
+        face.materialIndex = 1;
+      geometry.faces.push(face);
+      face = new THREE.Face3(7, 3, 5), //8
+        face.materialIndex = 3;
+      geometry.faces.push(face);
+      face = new THREE.Face3(1, 5, 3), //9
+        face.materialIndex = 3;
       geometry.faces.push(face);
 
-      face = new THREE.Face3(9, 7, 5),//14
-      face.materialIndex = 5;
+      face = new THREE.Face3(4, 8, 5), //10
+        face.materialIndex = 4;
       geometry.faces.push(face);
-      face = new THREE.Face3(8, 4, 6),//15
-      face.materialIndex = 5;
+      face = new THREE.Face3(9, 5, 8), //11
+        face.materialIndex = 4;
+      geometry.faces.push(face);
+      face = new THREE.Face3(7, 9, 6), //12
+        face.materialIndex = 4;
+      geometry.faces.push(face);
+      face = new THREE.Face3(8, 6, 9), //13
+        face.materialIndex = 4;
       geometry.faces.push(face);
 
-      face = new THREE.Face3(8, 10, 11),//16
-      face.materialIndex = 6;
+      face = new THREE.Face3(9, 7, 5), //14
+        face.materialIndex = 5;
       geometry.faces.push(face);
-      face = new THREE.Face3(11, 9, 8),//17
-      face.materialIndex = 6;
+      face = new THREE.Face3(8, 4, 6), //15
+        face.materialIndex = 5;
       geometry.faces.push(face);
-      face = new THREE.Face3(10, 8, 9),//18
-      face.materialIndex = 6;
+
+      face = new THREE.Face3(8, 10, 11), //16
+        face.materialIndex = 6;
       geometry.faces.push(face);
-      face = new THREE.Face3(9, 11, 10)//19
+      face = new THREE.Face3(11, 9, 8), //17
+        face.materialIndex = 6;
+      geometry.faces.push(face);
+      face = new THREE.Face3(10, 8, 9), //18
+        face.materialIndex = 6;
+      geometry.faces.push(face);
+      face = new THREE.Face3(9, 11, 10) //19
       face.materialIndex = 6;
       geometry.faces.push(face);
 
@@ -442,46 +448,59 @@
       geometry.computeBoundingBox();
       geometry.computeFaceNormals();
 
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(1,1), new THREE.Vector2(0, 1), new THREE.Vector2(1,0) ]);//0
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(0,0), new THREE.Vector2(1, 0), new THREE.Vector2(0,1) ]);//1
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(1, 1), new THREE.Vector2(0, 1), new THREE.Vector2(1, 0)]); //0
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(0, 1)]); //1
 
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(1,1), new THREE.Vector2(0, 1), new THREE.Vector2(1,0) ]);//2
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(0,0), new THREE.Vector2(1, 0), new THREE.Vector2(0,1) ]);//3
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(0,0), new THREE.Vector2(1, 0), new THREE.Vector2(0,1) ]);//4
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(1,1), new THREE.Vector2(0, 1), new THREE.Vector2(1,0) ]);//5
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(0,0), new THREE.Vector2(1, 0), new THREE.Vector2(0,1) ]);//6
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(1,1), new THREE.Vector2(0, 1), new THREE.Vector2(1,0) ]);//7
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(0,0), new THREE.Vector2(1, 0), new THREE.Vector2(0,1) ]);//8
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(1,1), new THREE.Vector2(0, 1), new THREE.Vector2(1,0) ]);//9
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(1, 1), new THREE.Vector2(0, 1), new THREE.Vector2(1, 0)]); //2
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(0, 1)]); //3
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(0, 1)]); //4
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(1, 1), new THREE.Vector2(0, 1), new THREE.Vector2(1, 0)]); //5
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(0, 1)]); //6
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(1, 1), new THREE.Vector2(0, 1), new THREE.Vector2(1, 0)]); //7
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(0, 1)]); //8
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(1, 1), new THREE.Vector2(0, 1), new THREE.Vector2(1, 0)]); //9
 
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(0,0), new THREE.Vector2(1, 0), new THREE.Vector2(0,1) ]);//10
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(1,1), new THREE.Vector2(0, 1), new THREE.Vector2(1,0) ]);//11
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(0,0), new THREE.Vector2(1, 0), new THREE.Vector2(0,1) ]);//12
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(1,1), new THREE.Vector2(0, 1), new THREE.Vector2(1,0) ]);//13
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(0, 1)]); //10
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(1, 1), new THREE.Vector2(0, 1), new THREE.Vector2(1, 0)]); //11
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(0, 1)]); //12
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(1, 1), new THREE.Vector2(0, 1), new THREE.Vector2(1, 0)]); //13
 
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(0,0), new THREE.Vector2(0.5, 1), new THREE.Vector2(1,0) ]);//14
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(0,0), new THREE.Vector2(0.5, 1), new THREE.Vector2(1,0) ]);//15
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(0.5, 1), new THREE.Vector2(1, 0)]); //14
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(0.5, 1), new THREE.Vector2(1, 0)]); //15
 
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(1,1), new THREE.Vector2(0, 1), new THREE.Vector2(0,0) ]);//16
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(0,0), new THREE.Vector2(1, 0), new THREE.Vector2(1,1) ]);//17
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(1,1), new THREE.Vector2(0, 1), new THREE.Vector2(0,0) ]);//18
-      geometry.faceVertexUvs[0].push([ new THREE.Vector2(0,0), new THREE.Vector2(1, 0), new THREE.Vector2(1,1) ]);//19
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(1, 1), new THREE.Vector2(0, 1), new THREE.Vector2(0, 0)]); //16
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1)]); //17
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(1, 1), new THREE.Vector2(0, 1), new THREE.Vector2(0, 0)]); //18
+      geometry.faceVertexUvs[0].push([new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1)]); //19
 
       let loader = new THREE.TextureLoader();
       loader.crossOrigin = '';
-      //let texture = loader.load('https://i.imgur.com/p8CRm9W.jpg');
-      //let material = new THREE.MeshPhongMaterial({map:texture});
       let matAarry = [];
-      matAarry.push(new THREE.MeshPhongMaterial({map:loader.load('images/bottom.jpg')}));//0
-      matAarry.push(new THREE.MeshPhongMaterial({map:loader.load('images/front.jpg')}));//1
-      matAarry.push(new THREE.MeshPhongMaterial({map:loader.load('images/side1.jpg')}));//2
-      matAarry.push(new THREE.MeshPhongMaterial({map:loader.load('images/side2.jpg')}));//3
-      matAarry.push(new THREE.MeshPhongMaterial({map:loader.load('images/title.jpg')}));//4
-      matAarry.push(new THREE.MeshPhongMaterial({map:loader.load('images/logo.png')}));//5
-      matAarry.push(new THREE.MeshPhongMaterial({map:loader.load('images/date.png')}));//6
+      matAarry.push(new THREE.MeshPhongMaterial({
+        map: loader.load('images/bottom.jpg')
+      })); //0
+      matAarry.push(new THREE.MeshPhongMaterial({
+        map: loader.load('images/front.jpg')
+      })); //1
+      matAarry.push(new THREE.MeshPhongMaterial({
+        map: loader.load('images/side1.jpg')
+      })); //2
+      matAarry.push(new THREE.MeshPhongMaterial({
+        map: loader.load('images/side2.jpg')
+      })); //3
+      matAarry.push(new THREE.MeshPhongMaterial({
+        map: loader.load('images/title.jpg')
+      })); //4
+      matAarry.push(new THREE.MeshPhongMaterial({
+        map: loader.load('images/logo.png')
+      })); //5
+      matAarry.push(new THREE.MeshPhongMaterial({
+        map: loader.load('images/date.png')
+      })); //6
       let drink = new THREE.Mesh(geometry, matAarry);
       return drink;
     }
+
     function onDocumentMouseDown(event) {
 
       event.preventDefault();
