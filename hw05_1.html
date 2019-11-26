@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>HW05_1</title>
+  <style>
+    #info {
+      position: absolute;
+      left: 45vw;
+      top: 10px;
+      color: yellow;
+      text-align: center;
+    }
+
+    body {
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="info">
+    HW05_1<br>
+
+    <select id='coords'>
+      <option value="obj" selected>Object Coordinate</option>
+      <option value="world">World Coordinate</option>
+      <option value="eye">Eye Coordinate</option>
+    </select>
+
+    <select id='shading'>
+      <option value='perVertex' selected> Per Vertex</option>
+      <option value='perPixel'> Per Pixel </option>
+    </select>
+
+  </div>
+  <script src="https://threejs.org/build/three.min.js"></script>
+  <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+  <script src="https://raw.githack.com/mrdoob/three.js/dev/examples/js/geometries/TeapotBufferGeometry.js"></script>
+  <script id="myVertexShader" type="x-shader/x-vertex">
+    uniform int shading;
+    uniform int coordinate;
+    varying vec3 color;
+    varying vec3 mypos;
+
+    void perVertexShading(vec3 objpos, vec3 worldpos, vec3 eyepos) {
+      if (coordinate == 0) {
+    	  if (objpos.x > 0.0)
+      	color = vec3 (1,1,1);
+        else
+      	color = vec3 (0,0,0);
+      }
+      else if (coordinate == 1) {
+    	  if (worldpos.x > 0.0)
+      	color = vec3 (1,1,1);
+        else
+      	color = vec3 (0,0,0);
+      }
+      else if(coordinate == 2){
+        if(eyepos.x > 0.0)
+          color = vec3(1, 1, 1);
+        else
+          color = vec3(0, 0, 0);
+      }
+    }
+
+    // your homework
+    void perPixelShading(vec3 objpos, vec3 worldpos, vec3 eyepos) {
+      color = vec3(0, 0, 0);
+
+      if (coordinate == 0) {
+        mypos = objpos;
+      }
+      else if (coordinate == 1) {
+        mypos = worldpos;
+      }
+      else if(coordinate == 2){
+        mypos = eyepos;
+      }
+    }
+
+    void main() {
+  	  gl_Position = projectionMatrix* modelViewMatrix * vec4( position, 1.0);
+      vec4 worldpos = modelMatrix * vec4 (position, 1.0);
+      vec4 eyepos = modelViewMatrix * vec4 (position, 1.0);
+
+    	if (shading == 0)  // per-vertex shading
+      	perVertexShading(position, worldpos.xyz, eyepos.xyz);
+      else
+      	perPixelShading(position, worldpos.xyz, eyepos.xyz);
+    }
+  </script>
+
+  <script id="myFragmentShader" type="x-shader/x-fragment">
+    uniform int shading;
+    varying vec3 color;
+    varying vec3 mypos;
+  	void main() {
+      vec3 mycolor;
+      if(shading == 0)
+    		gl_FragColor = vec4 (color, 1.0);
+      else {
+        if(mypos.x > 0.0)
+          mycolor = vec3(1, 1, 1);
+        else
+          mycolor = vec3(0, 0, 0);
+        gl_FragColor = vec4 (mycolor, 1.0);
+      }
+
+  	}
+  </script>
+
+  <script id="myVertexShader2" type="x-shader/x-vertex">
+    uniform vec3 lightpos;  // world coordinate
+    varying vec3 eyelightdir;
+    varying vec3 eyenormal;
+
+    varying vec4 eyepos;
+
+    void main() {
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+
+        eyepos = modelViewMatrix * vec4 (position, 1.0);
+        vec4 eyelightpos= viewMatrix * vec4 (lightpos, 1.0);
+        eyelightdir = normalize (eyelightpos.xyz - eyepos.xyz);
+        eyenormal = normalMatrix * normal;
+    }
+  </script>
+  <script id="myFragmentShader2" type="x-shader/x-fragment">
+      varying vec3 eyelightdir;
+      varying vec3 eyenormal;
+      varying vec4 eyepos;
+
+      void main() {
+          float intensity = dot (normalize (eyenormal), normalize (eyelightdir));
+          vec3 diffuse = intensity*vec3 (1,1,1);
+
+          vec3 h = normalize(-normalize (eyepos.xyz) + normalize (eyelightdir));
+          float shininess = 40.;
+          vec3 specular = pow (dot (eyenormal, h), shininess) *vec3 (1,0,0);
+          gl_FragColor = vec4(diffuse + specular, 1.0);
+      }
+  </script>
+  <script type="text/javascript">
+
+    $('#coords').change( function() {
+      console.log ( $(this).val() );
+      let objType = $(this).val();
+      if (objType === 'obj') {
+        teapotMaterial.uniforms.coordinate.value = 0;
+      }
+      else if (objType === 'world') {
+        teapotMaterial.uniforms.coordinate.value = 1;
+      }
+      else if (objType === 'eye') {
+        teapotMaterial.uniforms.coordinate.value = 2;
+      }
+    });
+    $('#shading').change( function() {
+      console.log ( $(this).val() );
+      let objType = $(this).val();
+      if (objType === 'perVertex') {
+        teapotMaterial.uniforms.shading.value = 0;
+      }
+      else if (objType === 'perPixel') {
+        teapotMaterial.uniforms.shading.value = 1;
+      }
+    });
+
+    var camera, scene, renderer, mesh, target, light;
+    var teapot, moveteapot, teapotMaterial, teapotMaterial2, angle = 0;
+    init();
+    animate();
+
+    function init() {
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
+      camera.position.z = 70;
+      camera.position.y = 70;
+
+      light = new THREE.PointLight(0xffffff);
+      light.position.set(100, 300, 200);
+      scene.add(light);
+
+      var light2 = new THREE.AmbientLight(0x404040); // soft white light
+      scene.add(light2);
+
+      var gridXZ = new THREE.GridHelper(200, 20, 'red', 'white');
+      gridXZ.position.y = -10;
+      scene.add(gridXZ);
+
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x888888);
+
+      let controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+      document.body.appendChild(renderer.domElement);
+
+      teapotMaterial  = new THREE.ShaderMaterial({
+        uniforms: {
+          lightpos: {type:'v3', value: new THREE.Vector3(0, 30, 20) },
+          shading: {type:'i', value: 0},
+          coordinate: {type:'i', value: 0}
+      	},
+          vertexShader: document.getElementById('myVertexShader').textContent,
+          fragmentShader: document.getElementById('myFragmentShader').textContent
+      });
+      moveteapot = new THREE.Mesh(new THREE.TeapotBufferGeometry(10), teapotMaterial);
+      scene.add(moveteapot);
+
+      teapotMaterial2  = new THREE.ShaderMaterial({
+        uniforms: {
+          lightpos: {type:'v3', value: new THREE.Vector3(0, 30, 20) }
+      	},
+          vertexShader: document.getElementById('myVertexShader2').textContent,
+          fragmentShader: document.getElementById('myFragmentShader2').textContent
+      });
+      teapot = new THREE.Mesh(new THREE.TeapotBufferGeometry(10), new THREE.MeshPhongMaterial());
+      scene.add(teapot);
+      ///////////////////////////////////////////////////////////
+
+      window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function animate() {
+
+      angle += 0.01;
+
+      if (teapot !== undefined) {
+      	teapotMaterial2.uniforms.lightpos.value.copy(light.position);
+      }
+
+      if (moveteapot !== undefined) {
+      	moveteapot.position.set (40*Math.cos(angle), 0, 40*Math.sin(angle));
+      }
+      light.position.set (40*Math.cos(angle), 0, 40*Math.sin(angle));
+      requestAnimationFrame(animate);
+      render();
+    }
+
+    function render() {
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+  </script>
+</body>
+
+</html>
