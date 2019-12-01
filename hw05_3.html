@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>HW05_3</title>
+  <style>
+    #info {
+      position: absolute;
+      left: 45vw;
+      top: 10px;
+      color: yellow;
+      text-align: center;
+    }
+    #teapot {
+      position: absolute;
+      left: 40vw;
+      top: 30px;
+      color: yellow;
+      text-align: center;
+      font-size:3em;
+    }
+
+    body {
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="info">
+    HW05_3
+  </div>
+  <div id="teapot">teapot : 0 個</div>
+  <script src="https://threejs.org/build/three.min.js"></script>
+  <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+  <script src="https://raw.githack.com/mrdoob/three.js/dev/examples/js/geometries/TeapotBufferGeometry.js"></script>
+  <script src="https://mrdoob.github.io/stats.js/build/stats.min.js"></script>
+  <script id="myVertexShader" type="x-shader/x-vertex">
+    uniform vec3 lightpos;  // world coordinate
+    varying vec3 eyelightdir;
+    varying vec3 eyenormal;
+
+    varying vec4 eyepos;
+
+    void main() {
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+
+        eyepos = modelViewMatrix * vec4 (position, 1.0);
+        vec4 eyelightpos= viewMatrix * vec4 (lightpos, 1.0);
+        eyelightdir = normalize (eyelightpos.xyz - eyepos.xyz);
+        eyenormal = normalMatrix * normal;
+    }
+  </script>
+  <script id="myFragmentShader" type="x-shader/x-fragment">
+      varying vec3 eyelightdir;
+      varying vec3 eyenormal;
+      varying vec4 eyepos;
+      uniform float opacity;
+
+      void main() {
+          float intensity = dot (normalize (eyenormal), normalize (eyelightdir));
+          vec3 diffuse = intensity*vec3 (1,1,1);
+
+          vec3 h = normalize(-normalize (eyepos.xyz) + normalize (eyelightdir));
+          float shininess = 40.;
+          vec3 specular = pow (dot (eyenormal, h), shininess) *vec3 (1,1,1);
+          gl_FragColor = vec4(diffuse + specular, opacity);
+      }
+  </script>
+  <script type="text/javascript">
+
+    var camera, scene, renderer, mesh, target, light, stats;
+    var teapot, moveteapot, teapotMaterial, teapotMaterial2, angle = 0;
+    var teapots = [];
+    var clock = new THREE.Clock();
+    var raycaster;
+    var mouse = new THREE.Vector2();
+    var pickables = [], delArray = [];
+
+    class teaPot{
+      constructor(mesh, material, pos, n){
+
+        this.mesh = new THREE.Mesh(mesh, material);
+        this.mesh.name = "teapot";
+        this.mesh.n = n;
+        this.mesh.position.copy(pos);
+        scene.add(this.mesh);
+        this.life = 100;
+        this.opacity = 1.0;
+        this.isRotate = true;
+        this.dis = false;
+      }
+      update(dt, lightpos){
+
+        if(this.isRotate == true){
+          //旋轉
+          this.mesh.rotation.y += dt*this.life*0.1;
+          //減少life
+          if(this.life > 0){
+            this.life-=0.3;
+          }
+          //逐漸消失
+          else if(this.life <=0 && this.life >-1){
+            this.opacity = THREE.Math.lerp(this.opacity, 0, 0.1);
+            this.mesh.material.uniforms.opacity.value = this.opacity;
+            this.life -= 0.035;
+            //從scene移除
+            if(this.life <= -1){
+              this.destory();
+            }
+          }
+        }
+        this.mesh.material.uniforms.lightpos.value.copy (lightpos);
+      }
+      destory(){
+        scene.remove(this.mesh);
+        this.mesh.geometry.dispose();
+        this.mesh.material.dispose();
+        this.dis = true;
+      }
+      changeState(){
+        this.isRotate = !this.isRotate;
+        //console.log(this.isRotate);
+      }
+    }
+
+    init();
+    animate();
+
+    function init() {
+      scene = new THREE.Scene();
+
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
+      camera.position.z = 140;
+      camera.position.y = 140;
+
+      light = new THREE.PointLight(0xffffff);
+      light.position.set(100, 300, 200);
+      scene.add(light);
+
+      var light2 = new THREE.AmbientLight(0x404040); // soft white light
+      scene.add(light2);
+
+      stats = new Stats();
+      stats.showPanel(0);
+      stats.domElement.style.position = 'absolute';
+      stats.domElement.style.left = '0px';
+      stats.domElement.style.top = '10px';
+      document.body.appendChild(stats.domElement);
+
+      /*var gridXZ = new THREE.GridHelper(200, 20, 'red', 'white');
+      gridXZ.position.y = -10;
+      scene.add(gridXZ);*/
+
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x888888);
+
+      let controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+      document.body.appendChild(renderer.domElement);
+
+      teapotMaterial  = new THREE.ShaderMaterial({
+        uniforms: {
+          lightpos: {type:'v3', value: new THREE.Vector3(0, 30, 20) },
+          opacity: {type: 'f', value: 1.0}
+        },
+          vertexShader: document.getElementById('myVertexShader').textContent,
+          fragmentShader: document.getElementById('myFragmentShader').textContent
+      });
+      teapotMaterial.transparent = true;
+      /*let teapot = new teaPot(new THREE.TeapotBufferGeometry(10), teapotMaterial.clone(), new THREE.Vector3(0, 0, 0));
+      teapots.push(teapot);*/
+
+      let plane = new THREE.Mesh(new THREE.PlaneGeometry(200, 200, 20, 20), new THREE.MeshPhongMaterial());
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.y -= 10;
+      scene.add(plane);
+      pickables.push(plane);
+
+      let box1 = new THREE.Mesh(new THREE.BoxGeometry(20, 20, 20), new THREE.MeshPhongMaterial());
+      box1.position.set(-90, 0, -90);
+      scene.add(box1);
+      pickables.push(box1);
+
+      let box2 = new THREE.Mesh(new THREE.BoxGeometry(20, 20, 200), new THREE.MeshPhongMaterial());
+      box2.position.set(90, 0, 0);
+      scene.add(box2);
+      pickables.push(box2);
+
+
+
+
+      raycaster = new THREE.Raycaster();
+      ///////////////////////////////////////////////////////////
+
+      window.addEventListener('resize', onWindowResize, false);
+      document.addEventListener('mousedown', onDocumentMouseDown, false);
+    }
+
+    function animate() {
+      stats.begin();
+      let dt = clock.getDelta();
+
+
+      //console.log(pickables.length);
+
+      let str = "teapot : " + teapots.length + "個";
+      $("#teapot").html(str);
+      for(let i=0;i<teapots.length;i++){
+        if(teapots[i].dis == true){
+          delArray.push(i);
+        }
+        else {
+          teapots[i].update(dt,light.position);
+        }
+      }
+
+      for(let i=0;i<delArray.length;i++){
+
+        for(let j=delArray[i]+1;j<teapots.length;j++){
+          teapots[j].mesh.n -= 1;
+        }
+        teapots.splice(delArray[i], 1);
+        pickables.splice(delArray[i]+1, 1);
+      }
+      delArray = [];
+
+      angle += 0.05;
+      light.position.set(60*Math.cos(angle), 30, 60*Math.sin(angle));
+      stats.end();
+
+      requestAnimationFrame(animate);
+      render();
+    }
+
+    function render() {
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    function onDocumentMouseDown(event) {
+
+      event.preventDefault();
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      // find intersections
+      raycaster.setFromCamera(mouse, camera);
+      var intersects = raycaster.intersectObjects(pickables);
+      if (intersects.length > 0) {
+        if(intersects[0].object.name == "teapot"){
+          //console.log(intersects[0].object.n);
+          teapots[intersects[0].object.n].changeState();
+
+        }
+        else {
+          let pos = intersects[0].point;
+          pos.y += 10;
+          let teapot = new teaPot(new THREE.TeapotBufferGeometry(10), teapotMaterial.clone(), pos, teapots.length);
+          teapots.push(teapot);
+          pickables.push(teapot.mesh);
+        }
+      }
+
+    }
+  </script>
+</body>
+
+</html>
