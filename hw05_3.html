@@ -61,14 +61,18 @@
       varying vec4 eyepos;
       uniform float opacity;
 
+      uniform vec3 kcool;
+      uniform vec3 kwarm;
+
       void main() {
+
           float intensity = dot (normalize (eyenormal), normalize (eyelightdir));
-          vec3 diffuse = intensity*vec3 (1,1,1);
+          float k = (1.0 + intensity)/2.;
 
           vec3 h = normalize(-normalize (eyepos.xyz) + normalize (eyelightdir));
           float shininess = 40.;
-          vec3 specular = pow (dot (eyenormal, h), shininess) *vec3 (1,1,1);
-          gl_FragColor = vec4(diffuse + specular, opacity);
+          vec3 specular = pow (dot (eyenormal, h), shininess) *vec3 (1,0,0);
+          gl_FragColor = vec4(mix (kcool, kwarm, k) + specular, opacity);
       }
   </script>
   <script type="text/javascript">
@@ -167,7 +171,9 @@
       teapotMaterial  = new THREE.ShaderMaterial({
         uniforms: {
           lightpos: {type:'v3', value: new THREE.Vector3(0, 30, 20) },
-          opacity: {type: 'f', value: 1.0}
+          opacity: {type: 'f', value: 1.0},
+          kcool: {type: 'v3', value: new THREE.Vector3(0,0,0.55)},
+          kwarm: {type: 'v3', value: new THREE.Vector3(0.3,0.3,0)}
         },
           vertexShader: document.getElementById('myVertexShader').textContent,
           fragmentShader: document.getElementById('myFragmentShader').textContent
