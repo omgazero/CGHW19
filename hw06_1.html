@@ -20,7 +20,7 @@
 </head>
 
 <body>
-  <div id="info">HW06_1 <br>BUG:飲料仍是彩色的</div>
+  <div id="info">HW06_1 </div>
   <script src="https://threejs.org/build/three.min.js"></script>
   <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
   <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
@@ -106,7 +106,7 @@
       raycaster = new THREE.Raycaster(),
       mouse = new THREE.Vector2();
     var mySwitch1, mySwitch2, lampLight;
-    var angle = 0, width, height;
+    var angle = 0, width, height, matAarry = [];
 
 
 
@@ -254,6 +254,10 @@
         		obj.material.colorWrite = true;
         });
 
+        matAarry.forEach(function(e){
+          e.colorWrite = true;
+        });
+
         renderer.render(sceneGrey, camera);
 
         renderer.setRenderTarget (null);
@@ -263,6 +267,9 @@
         sceneGrey.traverse ( function (obj) {
           if (obj instanceof THREE.Mesh)
             obj.material.colorWrite = false;
+        });
+        matAarry.forEach(function(e){
+          e.colorWrite = false;
         });
         renderer.render (sceneGrey, camera);
 
@@ -521,7 +528,7 @@
 
       let loader = new THREE.TextureLoader();
       loader.crossOrigin = '';
-      let matAarry = [];
+      matAarry = [];
       matAarry.push(new THREE.MeshPhongMaterial({
         map: loader.load('images/bottom.jpg')
       })); //0

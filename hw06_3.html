@@ -309,7 +309,7 @@
     var mySwitch1, mySwitch2, lampLight;
     var angle = 0, width, height, sceneRTT, cameraRTT, sceneRegular, teapotClone, scene1, camera1, planeXX;
     var sceneSobel, cameraSobel, renderTargetSobel;
-    var sceneNormal, cameraNormal, renderTargetNormal, wallmaterial, wallswapMaterial;
+    var sceneNormal, cameraNormal, renderTargetNormal, wallmaterial, wallswapMaterial, matAarry = [];
 
     init();
     animate();
@@ -668,6 +668,10 @@
             obj.material.colorWrite = true;
         });
 
+        matAarry.forEach(function(e){
+          e.colorWrite = true;
+        });
+
         renderer.render(sceneGrey, camera);
 
         renderer.setRenderTarget (null);
@@ -678,6 +682,11 @@
           if (obj instanceof THREE.Mesh)
             obj.material.colorWrite = false;
         });
+
+        matAarry.forEach(function(e){
+          e.colorWrite = false;
+        });
+
         renderer.render (sceneGrey, camera);
 
         renderer.render(sceneColor, camera);
@@ -935,7 +944,7 @@
 
       let loader = new THREE.TextureLoader();
       loader.crossOrigin = '';
-      let matAarry = [];
+      matAarry = [];
       matAarry.push(new THREE.MeshPhongMaterial({
         map: loader.load('images/bottom.jpg')
       })); //0
